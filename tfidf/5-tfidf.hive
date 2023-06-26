@@ -1,0 +1,44 @@
+DROP TABLE IF EXISTS termCount;
+CREATE TABLE termCount (
+    docid STRING,
+    terms INT
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t';
+LOAD DATA INPATH "/output/2-term-count-document/*" INTO TABLE termCount;
+
+DROP TABLE IF EXISTS termDoc;
+CREATE TABLE termDoc (
+    docid STRING,
+    term STRING,
+    count INT
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t';
+LOAD DATA INPATH "/output/3-split-doc-term/*" INTO TABLE termDoc;
+
+DROP TABLE IF EXISTS df;
+CREATE TABLE df (
+    term STRING,
+    count INT
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t';
+LOAD DATA INPATH "/output/4-df/*" INTO TABLE df;
+
+DROP TABLE IF EXISTS tfidf;
+CREATE TABLE tfidf AS
+SELECT 
+    termDoc.docid,
+    termDoc.term,
+    1000000 * (termDoc.count/termCount.terms) * LOG10((SELECT COUNT(DISTINCT docid) FROM termCount) / df.count) AS tf_idf
+FROM
+    termDoc
+    JOIN termCount ON termDoc.docid = termCount.docid
+    JOIN df ON termDoc.term = df.term;
+
+INSERT OVERWRITE DIRECTORY '/output/5-tfidf'
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t'
+STORED AS TEXTFILE
+SELECT * FROM tfidf;
